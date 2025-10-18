@@ -63,9 +63,31 @@ class WallFollow(Node):
 
         #TODO: implement
         if self.angle_min is None or self.angle_increment is None:
-            
+            return float('nan')
+        
+        idx = int(round((angle - self.angle_min) / self.angle_increment))
+        idx = max(0, min(idx, len(range_data) - 1))
 
-        return 0.0
+        #local median over small window to handle NaN/inf
+        window = 2
+        lo = max(0, idx - window)
+        hi = min(len(range_data), idx + window + 1)
+        window_vals = [v for v in range_data[lo:hi] if np.isfinite(v)]
+
+        if not window_vals:
+            #fallback to single value or range_max
+            r = range_data[idx]
+            if not np.isfinite(r):
+                r = self.range_max if self.range_max is not None else 0.0
+            return float(r)
+        
+        r_med = float(np.median(window_vals))
+        #clamp to sensor bounds if known
+        if self.range_min is not None and self.range_max is not None:
+            r_med = max(self.range_min, min(self.range_max, r_med))
+        return r_med
+    
+    
 
     def get_error(self, range_data, dist):
         """
