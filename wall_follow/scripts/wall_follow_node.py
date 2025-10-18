@@ -16,18 +16,37 @@ class WallFollow(Node):
         drive_topic = '/drive'
 
         # TODO: create subscribers and publishers
+        self.scan_sub = self.create_subscription(LaserScan, lidarscan_topic, 
+                                                 self.scan_callback, 10)
+        
+        self.drive_pub = self.creare_publisher(AckermannDriveStamped, drive_topic, 10)
+
+        # LiDAR metadata (used by get_range)
+        self.angle_min = None
+        self.angle_increment = None
+        self.range_min = None
+        self.range_max = None
+
+        # Controller parameters
+        self.desired_dist = 1.0     # meters
+        self.theta_deg = 50.0       # deg (0, 70]
+        self.theta = np.deg2rad(self.theta_deg)
+        self.lookahead_L = 0.6      # meters
+
 
         # TODO: set PID gains
-        # self.kp = 
-        # self.kd = 
-        # self.ki = 
+        self.kp = 1.0 
+        self.kd = 0.2
+        self.ki = 0.0 
 
         # TODO: store history
-        # self.integral = 
-        # self.prev_error = 
-        # self.error = 
+        self.integral = 0.0
+        self.prev_error = 0.0
+        self.error = None
 
         # TODO: store any necessary values you think you'll need
+        self.max_steer = np.deg2rad(20.0)
+        self.i_clip = 2.0
 
     def get_range(self, range_data, angle):
         """
@@ -43,6 +62,9 @@ class WallFollow(Node):
         """
 
         #TODO: implement
+        if self.angle_min is None or self.angle_increment is None:
+            
+
         return 0.0
 
     def get_error(self, range_data, dist):
