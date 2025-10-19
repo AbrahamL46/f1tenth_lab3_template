@@ -87,7 +87,7 @@ class WallFollow(Node):
             r_med = max(self.range_min, min(self.range_max, r_med))
         return r_med
     
-    
+
 
     def get_error(self, range_data, dist):
         """
@@ -102,7 +102,25 @@ class WallFollow(Node):
         """
 
         #TODO:implement
-        return 0.0
+        
+        #desired angles (radians) relative to car +x
+        a_ang = np.pi / 2 - self.theta #90 degrees - theta
+        b_ang = np.pi / 2 #90 degrees
+
+        a = self.get_range(range_data, a_ang)
+        b = self.get_range(range_data, b_ang)
+
+        denom = a * np.sin(self.theta)
+        if not np.isfinite(a) or not np.isfinite(b) or abs(denom) < 1e - 6:
+            return 0.0
+        
+        alpha = np.arctan((a * np.cos(self.theta) - b) / denom)
+        Dt = b * np.cos(alpha)
+        Dt1 = Dt + self.lookahead_L * np.sin(alpha)
+
+        error = dist - Dt1 #positive error => steer left (positive angle)
+        return float(error)
+
 
     def pid_control(self, error, velocity):
         """
