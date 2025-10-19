@@ -133,10 +133,38 @@ class WallFollow(Node):
         Returns:
             None
         """
-        angle = 0.0
+
+        now = self.get_clock().now().nanoseconds() * 1e-9
+        dt = 0.0 if self.prev_time is None else max(1e-3, now - self.prev_time)
+        self.prev_time = now
+
         # TODO: Use kp, ki & kd to implement a PID controller
-        drive_msg = AckermannDriveStamped()
+
+        #pid terms
+        self.integral += error * dt
+        self.integral = float(np.clip(self.integral, -self.i_clip, self.i_clip))
+        deriv = (error - self.prev_error) / dt if dt > 0.0 else 0.0
+        self.prev_error = error 
+
+        angle = self.kp*error + self.ki*self.integral + self.kd*deriv
+        angle = float(np.clip(angle, -self.max_steer, self.max_steer))
+
+        ang_deg = abs(np.degrees(angle))
+        if ang_deg < 10.0:
+            speed = 1.5
+        elif ang_deg < 20.0:
+            speed = 1.0
+        else:
+            speed = 0.5
+        
         # TODO: fill in drive message and publish
+        drive_msg = AckermannDriveStamped()
+        drive_msg.header.stamp = self.get_clock().now().to_msg()
+        drive_msg.header.frame_id = 'base_link'
+        drive_msg.drive.steering_angle = angle #radians
+        drive_msg.drive.speed = float(speed) #m/s
+        self.drive_pub.publish(drive_msg)
+
 
     def scan_callback(self, msg):
         """
