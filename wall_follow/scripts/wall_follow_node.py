@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
 
@@ -19,7 +20,7 @@ class WallFollow(Node):
         self.scan_sub = self.create_subscription(LaserScan, lidarscan_topic, 
                                                  self.scan_callback, 10)
         
-        self.drive_pub = self.creare_publisher(AckermannDriveStamped, drive_topic, 10)
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, drive_topic, 10)
 
         # LiDAR metadata (used by get_range)
         self.angle_min = None
@@ -43,6 +44,7 @@ class WallFollow(Node):
         self.integral = 0.0
         self.prev_error = 0.0
         self.error = None
+        self.prev_time = None
 
         # TODO: store any necessary values you think you'll need
         self.max_steer = np.deg2rad(20.0)
@@ -111,7 +113,7 @@ class WallFollow(Node):
         b = self.get_range(range_data, b_ang)
 
         denom = a * np.sin(self.theta)
-        if not np.isfinite(a) or not np.isfinite(b) or abs(denom) < 1e - 6:
+        if not np.isfinite(a) or not np.isfinite(b) or abs(denom) < 1e-6:
             return 0.0
         
         alpha = np.arctan((a * np.cos(self.theta) - b) / denom)
@@ -134,7 +136,7 @@ class WallFollow(Node):
             None
         """
 
-        now = self.get_clock().now().nanoseconds() * 1e-9
+        now = self.get_clock().now().nanoseconds / 1e-9
         dt = 0.0 if self.prev_time is None else max(1e-3, now - self.prev_time)
         self.prev_time = now
 
@@ -151,22 +153,23 @@ class WallFollow(Node):
 
         ang_deg = abs(np.degrees(angle))
         if ang_deg < 10.0:
-            speed = 1.5
+            velocity = 1.5
         elif ang_deg < 20.0:
-            speed = 1.0
+            velocity = 1.0
         else:
-            speed = 0.5
+            velocity = 0.5
         
         # TODO: fill in drive message and publish
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = 'base_link'
         drive_msg.drive.steering_angle = angle #radians
-        drive_msg.drive.speed = float(speed) #m/s
+        drive_msg.drive.speed = velocity
+
         self.drive_pub.publish(drive_msg)
 
 
-    def scan_callback(self, msg):
+    def scan_callback(self, msg: LaserScan):
         """
         Callback function for LaserScan messages. Calculate the error and publish the drive message in this function.
 
@@ -176,8 +179,23 @@ class WallFollow(Node):
         Returns:
             None
         """
-        error = 0.0 # TODO: replace with error calculated by get_error()
-        velocity = 0.0 # TODO: calculate desired car velocity based on error
+        if self.angle_min is None:
+            self.angle_min = msg.angle_min
+            self.angle_increment = msg.angle_increment
+            self.range_min = msg.range_min
+            self.range_max = msg.range_max
+
+        error = self.get_error(msg.ranges, self.desired_dist) # TODO: replace with error calculated by get_error()
+        # TODO: calculate desired car velocity based on error
+        abs_error = abs(error)
+        if abs_error < 0.2:
+            velocity = 1.5
+        elif abs_error < 0.5:
+            velocity = 1.0
+        else:
+            velocity = 0.5
+
+        
         self.pid_control(error, velocity) # TODO: actuate the car with PID
 
 
